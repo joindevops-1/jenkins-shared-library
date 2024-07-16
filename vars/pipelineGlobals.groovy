@@ -1,5 +1,5 @@
 static final String nexusURL(){
-    return "http://nexus.daws78s.online:8081"
+    return "nexus.daws78s.online:8081"
 }
 
 static final String region(){
