@@ -62,6 +62,27 @@ def call(Map configMap){
                     """
                 }
             }
+            stage('Upload Artifact'){
+                steps{
+                    script{
+                        nexusArtifactUploader(
+                            nexusVersion: 'nexus3',
+                            protocol: 'http',
+                            nexusUrl: "$nexusUrl",
+                            groupId: 'com.expense',
+                            version: "${appVersion}",
+                            repository: "${component}",
+                            credentialsId: 'nexus-auth',
+                            artifacts: [
+                                [artifactId: "${component}",
+                                classifier: '',
+                                file: "${component}-" + "${appVersion}" + '.zip',
+                                type: 'zip']
+                            ]
+                        )
+                    }
+                }
+            }
             /* stage('SonarQube Code Analysis') {
                 environment {
                     scannerHome = tool 'sonar'
