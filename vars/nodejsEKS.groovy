@@ -85,24 +85,29 @@ def call(Map configMap){
                         echo "Deployment status: $deploymentStatus"
 
                         if (deploymentStatus != "True") {
-                            echo "Deployment failed. Rolling back to previous version."
-                            try {
-                                sh """
-                                    aws eks update-kubeconfig --region us-east-1 --name expense-dev
-                                    helm rollback backend 0 -n expense
-                                """
-                                // Verify rollback deployment status
-                                sleep(60) // Wait for the rollback to take effect
-                                def rollbackStatus = sh(script: "kubectl get deploy backend -n expense -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'", returnStdout: true).trim()
-                                echo "Rollback deployment status: $rollbackStatus"
+                            if (!releaseExists.isEmpty()) {
+                                echo "Deployment failed. Rolling back to previous version."
+                                try {
+                                    sh """
+                                        aws eks update-kubeconfig --region us-east-1 --name expense-dev
+                                        helm rollback backend 0 -n expense
+                                    """
+                                    // Verify rollback deployment status
+                                    sleep(60) // Wait for the rollback to take effect
+                                    def rollbackStatus = sh(script: "kubectl get deploy backend -n expense -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'", returnStdout: true).trim()
+                                    echo "Rollback deployment status: $rollbackStatus"
 
-                                if (rollbackStatus != "True") {
-                                    error("Rollback failed. Need to investigate why the earlier successful version failed.")
-                                } else {
-                                    echo "Rollback successful."
+                                    if (rollbackStatus != "True") {
+                                        error("Rollback failed. Need to investigate why the earlier successful version failed.")
+                                    } else {
+                                        echo "Rollback successful."
+                                    }
+                                } catch (Exception e) {
+                                    error("Exception during rollback: ${e}. Need to investigate.")
                                 }
-                            } catch (Exception e) {
-                                error("Exception during rollback: ${e}. Need to investigate.")
+                            }
+                            else{
+                                error("First deployment failed and there's no previous version to roll back to. Need to investigate.")
                             }
                         } else {
                             echo "Deployment successful."
