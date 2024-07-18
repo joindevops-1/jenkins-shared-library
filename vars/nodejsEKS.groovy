@@ -57,7 +57,7 @@ def call(Map configMap){
                     script{
                     def releaseExists = sh(script: "helm ls --all --short | grep -w ${component} || true", returnStdout: true).trim()
                     echo "Does release exists: $releaseExists"
-                    if (releaseExists != "") {
+                    if (releaseExists.isEmpty()) {
                         echo "Helm release ${component} exists. Running helm upgrade."
                         sh """
                             aws eks update-kubeconfig --region us-east-1 --name expense-dev
