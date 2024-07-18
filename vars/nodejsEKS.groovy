@@ -56,7 +56,7 @@ def call(Map configMap){
             stage('Deploy'){
                 steps{
                     script{
-                    releaseExists = sh(script: "helm ls --all --short | grep -w ${component} || true", returnStdout: true).trim()
+                    releaseExists = sh(script: "helm list -A --short | grep -w ${component} || true", returnStdout: true).trim()
                     echo "Does release exists: $releaseExists"
                     if (!releaseExists.isEmpty()) {
                         echo "Helm release ${component} exists. Running helm upgrade."
