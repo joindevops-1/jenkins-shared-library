@@ -80,39 +80,41 @@ def call(Map configMap){
             }
             stage('Verify Deployment') {
                 steps {
-                    script {    
-                        def deploymentStatus = sh(script: "kubectl get deploy backend -n expense -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'", returnStdout: true).trim()
-                        echo "Deployment status: $deploymentStatus"
+                    script { 
+                            def rolloutStatus = sh(script: "kubectl rollout status deployment/backend -n expense --timeout=2m || true", returnStdout: true).trim()
 
-                        if (deploymentStatus != "True") {
-                            if (!releaseExists.isEmpty()) {
-                                echo "Deployment failed. Rolling back to previous version."
-                                try {
-                                    sh """
-                                        aws eks update-kubeconfig --region us-east-1 --name expense-dev
-                                        helm rollback backend 0 -n expense
-                                    """
-                                    // Verify rollback deployment status
-                                    sleep(60) // Wait for the rollback to take effect
-                                    def rollbackStatus = sh(script: "kubectl get deploy backend -n expense -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'", returnStdout: true).trim()
-                                    echo "Rollback deployment status: $rollbackStatus"
+                            echo "Deployment status: $rolloutStatus"
 
-                                    if (rollbackStatus != "True") {
-                                        error("Rollback failed. Need to investigate why the earlier successful version failed.")
-                                    } else {
-                                        echo "Rollback successful."
+                            if (!rolloutStatus.contains('successfully rolled out')) {
+                                if (!releaseExists.isEmpty()) {
+                                    echo "Deployment failed. Rolling back to previous version."
+                                    try {
+                                        sh """
+                                            aws eks update-kubeconfig --region us-east-1 --name expense-dev
+                                            helm rollback backend 0 -n expense
+                                        """
+                                        // Verify rollback deployment status
+                                        sleep(60) // Wait for the rollback to take effect
+                                        rollbackStatus = sh(script: "kubectl rollout status deployment/backend -n expense --timeout=2m || true", returnStdout: true).trim()
+                                        echo "Rollback deployment status: $rollbackStatus"
+
+                                        if (rollbackStatus.contains('successfully rolled out')) {
+                                            echo "Rollback successful."
+                                        } else {
+                                            error("Rollback failed. Need to investigate why the earlier successful version failed.")
+                                        }
+                                    } catch (Exception e) {
+                                        error("Exception during rollback: ${e}. Need to investigate.")
                                     }
-                                } catch (Exception e) {
-                                    error("Exception during rollback: ${e}. Need to investigate.")
                                 }
+                                else{
+                                    error("First deployment failed and there's no previous version to roll back to. Need to investigate.")
+                                }
+                            } else {
+                                echo "Deployment successful."
                             }
-                            else{
-                                error("First deployment failed and there's no previous version to roll back to. Need to investigate.")
-                            }
-                        } else {
-                            echo "Deployment successful."
-                        }
-                    }
+                    
+                }
                 }
             }           
             /* stage('Upload Artifact'){
