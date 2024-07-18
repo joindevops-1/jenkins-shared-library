@@ -14,6 +14,7 @@ def call(Map configMap){
             component = configMap.get("component")
             account_id = pipelineGlobals.account_id()
             region = pipelineGlobals.region()
+            def releaseExists = ''
         }
         
         stages {
@@ -55,7 +56,7 @@ def call(Map configMap){
             stage('Deploy'){
                 steps{
                     script{
-                    def releaseExists = sh(script: "helm ls --all --short | grep -w ${component} || true", returnStdout: true).trim()
+                    releaseExists = sh(script: "helm ls --all --short | grep -w ${component} || true", returnStdout: true).trim()
                     echo "Does release exists: $releaseExists"
                     if (releaseExists.isEmpty()) {
                         echo "Helm release ${component} exists. Running helm upgrade."
@@ -77,6 +78,38 @@ def call(Map configMap){
                     }
                 }
             }
+            stage('Verify Deployment') {
+                steps {
+                    script {    
+                        def deploymentStatus = sh(script: "kubectl get deploy backend -n expense -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'", returnStdout: true).trim()
+                        echo "Deployment status: $deploymentStatus"
+
+                        if (deploymentStatus != "True") {
+                            echo "Deployment failed. Rolling back to previous version."
+                            try {
+                                sh """
+                                    aws eks update-kubeconfig --region us-east-1 --name expense-dev
+                                    helm rollback backend 0 -n expense
+                                """
+                                // Verify rollback deployment status
+                                sleep(60) // Wait for the rollback to take effect
+                                def rollbackStatus = sh(script: "kubectl get deploy backend -n expense -o jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'", returnStdout: true).trim()
+                                echo "Rollback deployment status: $rollbackStatus"
+
+                                if (rollbackStatus != "True") {
+                                    error("Rollback failed. Need to investigate why the earlier successful version failed.")
+                                } else {
+                                    echo "Rollback successful."
+                                }
+                            } catch (Exception e) {
+                                error("Exception during rollback: ${e}. Need to investigate.")
+                            }
+                        } else {
+                            echo "Deployment successful."
+                        }
+                    }
+                }
+            }           
             /* stage('Upload Artifact'){
                 steps{
                     script{
