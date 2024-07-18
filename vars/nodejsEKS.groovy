@@ -54,12 +54,25 @@ def call(Map configMap){
             }
             stage('Deploy'){
                 steps{
-                    sh """
-                        aws eks update-kubeconfig --region us-east-1 --name expense-dev
-                        cd helm
-                        sed -i 's/IMAGE_VERSION/${appVersion}/g' values.yaml
-                        helm install ${component} .
-                    """
+                    def releaseExists = sh(script: "helm ls --all --short | grep -w ${component} || true", returnStdout: true).trim()
+                    echo "Does release exists: $releaseExists"
+                    if (releaseExists) {
+                        echo "Helm release ${component} exists. Running helm upgrade."
+                        sh """
+                            aws eks update-kubeconfig --region us-east-1 --name expense-dev
+                            cd helm
+                            sed -i 's/IMAGE_VERSION/${appVersion}/g' values.yaml
+                            helm upgrade backend .
+                        """
+                    } else {
+                        echo "Helm release 'backend' does not exist. Running helm install."
+                        sh """
+                            aws eks update-kubeconfig --region us-east-1 --name expense-dev
+                            cd helm
+                            sed -i 's/IMAGE_VERSION/${appVersion}/g' values.yaml
+                            helm install backend .
+                        """
+                    }
                 }
             }
             /* stage('Upload Artifact'){
