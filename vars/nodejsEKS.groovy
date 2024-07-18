@@ -62,7 +62,7 @@ def call(Map configMap){
                     """
                 }
             }
-            stage('Upload Artifact'){
+            /* stage('Upload Artifact'){
                 steps{
                     script{
                         nexusArtifactUploader(
@@ -82,7 +82,7 @@ def call(Map configMap){
                         )
                     }
                 }
-            }
+            } */
             /* stage('SonarQube Code Analysis') {
                 environment {
                     scannerHome = tool 'sonar'
